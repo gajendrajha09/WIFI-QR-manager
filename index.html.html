@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi QR Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1f1f1f;
+    --surface3: #272727;
+    --border: rgba(255,255,255,0.08);
+    --border-hover: rgba(255,255,255,0.14);
+    --text: #f0f0f0;
+    --text-muted: #888;
+    --text-dim: #555;
+    --accent: #4ade80;
+    --accent-dim: rgba(74,222,128,0.12);
+    --accent-border: rgba(74,222,128,0.3);
+    --danger: #f87171;
+    --danger-dim: rgba(248,113,113,0.1);
+    --info: #60a5fa;
+    --info-dim: rgba(96,165,250,0.1);
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Layout */
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    padding: 2rem 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+  }
+  .logo {
+    padding: 0 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .logo-icon svg { width: 18px; height: 18px; color: #0d0d0d; }
+  .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+  .logo-sub { font-size: 11px; color: var(--text-dim); margin-top: -2px; }
+
+  .nav { flex: 1; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 1.25rem;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-muted);
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-dim); }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .sidebar-footer {
+    padding: 1.25rem;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .main { flex: 1; padding: 2.5rem; max-width: 720px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Typography */
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.03em; margin-bottom: 0.25rem; }
+  .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 2rem; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 1.25rem;
+  }
+
+  /* Form */
+  .field { margin-bottom: 1.25rem; }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .field input[type=text],
+  .field input[type=password],
+  .field input[type=date],
+  .field select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    padding: 9px 12px;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .field input:focus,
+  .field select:focus {
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px rgba(74,222,128,0.08);
+  }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+    cursor: pointer;
+  }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .hint { font-size: 12px; color: var(--text-dim); margin-top: 5px; }
+  .pass-row { display: flex; gap: 8px; }
+  .pass-row input { flex: 1; }
+  .eye-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    padding: 0 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: border-color 0.15s;
+    flex-shrink: 0;
+  }
+  .eye-btn:hover { border-color: var(--border-hover); color: var(--text); }
+  .eye-btn svg { width: 16px; height: 16px; }
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .check-row input[type=checkbox] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .check-row span { font-size: 13px; color: var(--text-muted); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .btn-primary { background: var(--accent); color: #0d0d0d; }
+  .btn-primary:hover { background: #6ef09a; }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--border-hover); background: var(--surface3); }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid transparent; }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger-ghost { background: transparent; color: var(--danger); border: 1px solid transparent; }
+  .btn-danger-ghost:hover { background: var(--danger-dim); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem; }
+
+  /* Badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .badge-green { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); }
+  .badge-blue { background: var(--info-dim); color: var(--info); border: 1px solid rgba(96,165,250,0.25); }
+  .badge-red { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(248,113,113,0.2); }
+
+  /* Notice */
+  .notice {
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+  }
+  .notice svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+  .notice-green { background: var(--accent-dim); color: #6ef09a; border: 1px solid var(--accent-border); }
+  .notice-blue { background: var(--info-dim); color: #93c5fd; border: 1px solid rgba(96,165,250,0.2); }
+
+  /* QR Preview */
+  .qr-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+  }
+  .qr-frame {
+    background: #fff;
+    padding: 16px;
+    border-radius: 12px;
+    display: inline-block;
+    position: relative;
+  }
+  .qr-label {
+    text-align: center;
+    margin-top: 1.25rem;
+  }
+  .qr-label .ssid-name {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .qr-label .ssid-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+  .empty-qr {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-dim);
+  }
+  .empty-qr svg { width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.3; }
+  .empty-qr p { font-size: 14px; }
+
+  /* Color dots */
+  .color-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .cdot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.1s, border-color 0.1s;
+  }
+  .cdot:hover { transform: scale(1.1); }
+  .cdot.sel { border-color: #fff; }
+
+  /* Saved networks */
+  .net-list { display: flex; flex-direction: column; gap: 1px; }
+  .net-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+  .net-item:last-child { border-bottom: none; }
+  .net-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .net-icon svg { width: 17px; height: 17px; color: var(--accent); }
+  .net-info { flex: 1; min-width: 0; }
+  .net-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .net-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .net-actions { display: flex; gap: 4px; }
+
+  /* How-to */
+  .steps { counter-reset: step; }
+  .step {
+    display: flex;
+    gap: 14px;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-body h3 { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .step-body p { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--surface3);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text);
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Divider */
+  .divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .sidebar { display: none; }
+    .main { padding: 1.25rem; max-width: 100%; }
+    .field-row { grid-template-columns: 1fr; }
+  }
+
+  /* Print styles */
+  @media print {
+    .sidebar, .btn-row, .notice { display: none !important; }
+    body { background: white; color: black; }
+    .card { border: 1px solid #ddd; background: white; }
+    .qr-frame { border: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3" rx="0.5"/><rect x="19" y="14" width="2" height="2" rx="0.5"/><rect x="14" y="19" width="2" height="2" rx="0.5"/><rect x="18" y="18" width="3" height="3" rx="0.5"/></svg>
+      </div>
+      <div>
+        <div class="logo-text">WiFi QR</div>
+        <div class="logo-sub">Manager</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-item active" onclick="go('create')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+        Create QR
+      </div>
+      <div class="nav-item" onclick="go('saved')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+        Saved networks
+      </div>
+      <div class="nav-item" onclick="go('howto')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+        How to use
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      All data stays on device.<br>No server. No tracking.
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- CREATE PAGE -->
+    <div id="page-create" class="page active">
+      <h1>Create WiFi QR</h1>
+      <p class="page-subtitle">Generate a QR code that connects guests without showing your password.</p>
+
+      <div class="notice notice-green">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Password is encoded inside the QR — never visible to anyone who scans it.
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+
+        <!-- Left: form -->
+        <div>
+          <div class="card">
+            <div class="card-title">Network details</div>
+
+            <div class="field">
+              <label>Network name (SSID)</label>
+              <input type="text" id="ssid" placeholder="e.g. HomeNetwork_5G" oninput="update()">
+            </div>
+
+            <div class="field">
+              <label>Security type</label>
+              <select id="security" onchange="secChange()">
+                <option value="WPA">WPA / WPA2 / WPA3</option>
+                <option value="WEP">WEP (legacy)</option>
+                <option value="nopass">Open — no password</option>
+              </select>
+            </div>
+
+            <div class="field" id="pass-field">
+              <label>Password <span style="color:var(--text-dim);font-size:11px">— hidden in QR, never shown</span></label>
+              <div class="pass-row">
+                <input type="password" id="password" placeholder="Enter WiFi password" oninput="update()">
+                <button class="eye-btn" onclick="toggleEye()" id="eye-btn" title="Show / hide">
+                  <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="check-row">
+                <input type="checkbox" id="hidden-net" onchange="update()">
+                <span>Hidden network (SSID not broadcast)</span>
+              </label>
+            </div>
+
+            <div class="field">
+              <label>Network label <span style="color:var(--text-dim);font-size:11px">— displayed under QR</span></label>
+              <input type="text" id="label" placeholder="e.g. Guest WiFi" oninput="update()">
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">QR appearance</div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>QR size</label>
+                <select id="qrsize" onchange="update()">
+                  <option value="160">Small (160 px)</option>
+                  <option value="220" selected>Medium (220 px)</option>
+                  <option value="300">Large (300 px)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Error correction</label>
+                <select id="ecl" onchange="update()">
+                  <option value="L">Low — max data</option>
+                  <option value="M" selected>Medium</option>
+                  <option value="H">High — most resilient</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>QR color</label>
+              <div class="color-row" id="color-row">
+                <div class="cdot sel" style="background:#111111" data-c="#111111" onclick="pickColor(this)"></div>
+                <div class="cdot" style="background:#1d4ed8" data-c="#1d4ed8" onclick="pickColor(this)"></div>
+                <div class="cdot" style="background:#15803d" data-c="#15803d" onclick="pickColor(this)"></div>
+                <div class="cdot" style="background:#b45309" data-c="#b45309" onclick="pickColor(this)"></div>
+                <div class="cdot" style="background:#7c3aed" data-c="#7c3aed" onclick="pickColor(this)"></div>
+                <div class="cdot" style="background:#be185d" data-c="#be185d" onclick="pickColor(this)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: QR preview -->
+        <div>
+          <div class="card" style="height:100%; min-height:400px;">
+            <div class="card-title">Live preview</div>
+            <div id="qr-empty" class="empty-qr">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/><rect x="18" y="18" width="3" height="3"/></svg>
+              <p>Enter an SSID to generate QR</p>
+            </div>
+            <div id="qr-out" style="display:none">
+              <div class="qr-stage">
+                <div class="qr-frame" id="qr-box"></div>
+                <div class="qr-label">
+                  <div class="ssid-name" id="qr-name"></div>
+                  <div class="ssid-meta" id="qr-meta"></div>
+                </div>
+              </div>
+              <div class="btn-row" style="justify-content:center">
+                <button class="btn btn-primary" onclick="downloadQR()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download
+                </button>
+                <button class="btn btn-secondary" onclick="saveNetwork()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                  Save
+                </button>
+                <button class="btn btn-ghost" onclick="copyWifi()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  Copy string
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAVED PAGE -->
+    <div id="page-saved" class="page">
+      <h1>Saved networks</h1>
+      <p class="page-subtitle">Load any saved network to regenerate or edit its QR code.</p>
+
+      <div id="saved-empty" class="card">
+        <div class="empty-qr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/></svg>
+          <p>No saved networks yet.<br>Create a QR and hit Save.</p>
+        </div>
+      </div>
+
+      <div id="saved-wrap" class="card" style="display:none">
+        <div class="card-title">Your networks</div>
+        <div class="net-list" id="net-list"></div>
+      </div>
+    </div>
+
+    <!-- HOW TO USE PAGE -->
+    <div id="page-howto" class="page">
+      <h1>How to use</h1>
+      <p class="page-subtitle">From generating to sharing — everything you need to know.</p>
+
+      <div class="card">
+        <div class="card-title">Generating a QR code</div>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div class="step-body"><h3>Enter network details</h3><p>Type your SSID (network name) and password. The password is encoded silently — it never appears on screen for guests.</p></div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-body"><h3>Customize and preview</h3><p>Choose a QR size, color, and error-correction level. The preview updates live as you type.</p></div></div>
+          <div class="step"><div class="step-num">3</div><div class="step-body"><h3>Download or save</h3><p>Download as a PNG to print and display. Hit Save to keep the network in your local list for quick access later.</p></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Scanning on Android</div>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div class="step-body"><h3>Open Camera</h3><p>Use the default Camera app or Google Lens on Android 10 and above.</p></div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-body"><h3>Point and tap</h3><p>Point at the QR code. A banner appears — tap it. Android connects automatically with no password entry.</p></div></div>
+        </div>
+        <p class="hint" style="margin-top:0.5rem">Older Android: install a WiFi QR scanner app from the Play Store.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Scanning on iPhone / iPad</div>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div class="step-body"><h3>Open Camera app</h3><p>Requires iOS 11 or later. No third-party app needed.</p></div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-body"><h3>Point and tap the banner</h3><p>Tap the notification banner at the top of the screen. iPhone joins the network immediately.</p></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Privacy &amp; security notes</div>
+        <ul style="font-size:14px; color:var(--text-muted); padding-left:1.25rem; line-height:2.1;">
+          <li>All QR generation runs entirely in your browser — nothing is sent to any server.</li>
+          <li>Saved networks are stored in your browser's <code style="font-size:12px; background:var(--surface2); padding:1px 5px; border-radius:4px;">localStorage</code> — clearing browser data deletes them.</li>
+          <li>Anyone who scans the QR can join the network. To revoke access, change your WiFi password.</li>
+          <li>For guests, consider using a separate guest network with its own password.</li>
+          <li>The QR format used is the open standard: <code style="font-size:12px; background:var(--surface2); padding:1px 5px; border-radius:4px;">WIFI:T:WPA;S:name;P:pass;;</code></li>
+        </ul>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+let qrColor = '#111111';
+let networks = JSON.parse(localStorage.getItem('wifiqr-nets') || '[]');
+
+function go(p) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  const items = document.querySelectorAll('.nav-item');
+  const map = {create:0, saved:1, howto:2};
+  items[map[p]].classList.add('active');
+  if(p==='saved') renderSaved();
+}
+
+function secChange() {
+  document.getElementById('pass-field').style.display = document.getElementById('security').value === 'nopass' ? 'none' : 'block';
+  update();
+}
+
+function toggleEye() {
+  const inp = document.getElementById('password');
+  const icon = document.getElementById('eye-icon');
+  if(inp.type==='password') {
+    inp.type='text';
+    icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  } else {
+    inp.type='password';
+    icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
+
+function pickColor(el) {
+  document.querySelectorAll('.cdot').forEach(d => d.classList.remove('sel'));
+  el.classList.add('sel');
+  qrColor = el.dataset.c;
+  update();
+}
+
+function buildWifi() {
+  const s = document.getElementById('ssid').value.trim();
+  if(!s) return null;
+  const sec = document.getElementById('security').value;
+  const p = document.getElementById('password').value;
+  const h = document.getElementById('hidden-net').checked ? 'true' : 'false';
+  const esc = v => v.replace(/([\\;",:"])/g,'\\$1');
+  if(sec==='nopass') return `WIFI:T:nopass;S:${esc(s)};H:${h};;`;
+  return `WIFI:T:${sec};S:${esc(s)};P:${esc(p)};H:${h};;`;
+}
+
+function update() {
+  const str = buildWifi();
+  if(!str) {
+    document.getElementById('qr-empty').style.display='block';
+    document.getElementById('qr-out').style.display='none';
+    return;
+  }
+  document.getElementById('qr-empty').style.display='none';
+  document.getElementById('qr-out').style.display='block';
+
+  const box = document.getElementById('qr-box');
+  box.innerHTML = '';
+  const size = parseInt(document.getElementById('qrsize').value);
+  const eclVal = document.getElementById('ecl').value;
+  const eclMap = {L: QRCode.CorrectLevel.L, M: QRCode.CorrectLevel.M, H: QRCode.CorrectLevel.H};
+  try {
+    new QRCode(box, { text: str, width: size, height: size, colorDark: qrColor, colorLight: '#ffffff', correctLevel: eclMap[eclVal] });
+  } catch(e) {
+    box.innerHTML = '<span style="color:var(--danger);font-size:13px;padding:1rem;display:block">Generation failed — check your inputs</span>';
+  }
+
+  const ssid = document.getElementById('ssid').value.trim();
+  const lbl = document.getElementById('label').value.trim();
+  document.getElementById('qr-name').textContent = lbl || ssid;
+  const sec = document.getElementById('security').value;
+  const secLabel = sec==='nopass' ? 'Open network' : sec + ' · password hidden';
+  document.getElementById('qr-meta').textContent = secLabel;
+}
+
+function downloadQR() {
+  const canvas = document.querySelector('#qr-box canvas');
+  const img = document.querySelector('#qr-box img');
+  const name = (document.getElementById('ssid').value.trim() || 'wifi') + '-qr.png';
+  if(canvas) { const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download=name; a.click(); }
+  else if(img) { const a=document.createElement('a'); a.href=img.src; a.download=name; a.click(); }
+  toast('QR downloaded');
+}
+
+function saveNetwork() {
+  const ssid = document.getElementById('ssid').value.trim();
+  if(!ssid) return;
+  const entry = {
+    id: Date.now(),
+    ssid,
+    label: document.getElementById('label').value.trim(),
+    security: document.getElementById('security').value,
+    password: document.getElementById('password').value,
+    hidden: document.getElementById('hidden-net').checked,
+    saved: new Date().toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'})
+  };
+  networks = networks.filter(n => n.ssid !== ssid);
+  networks.unshift(entry);
+  localStorage.setItem('wifiqr-nets', JSON.stringify(networks));
+  toast('Network saved');
+}
+
+function copyWifi() {
+  const str = buildWifi();
+  if(!str) return;
+  navigator.clipboard.writeText(str).then(() => toast('WiFi string copied'));
+}
+
+function renderSaved() {
+  if(!networks.length) {
+    document.getElementById('saved-empty').style.display='block';
+    document.getElementById('saved-wrap').style.display='none';
+    return;
+  }
+  document.getElementById('saved-empty').style.display='none';
+  document.getElementById('saved-wrap').style.display='block';
+  document.getElementById('net-list').innerHTML = networks.map((n,i) => `
+    <div class="net-item">
+      <div class="net-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+      </div>
+      <div class="net-info">
+        <div class="net-name">${n.label || n.ssid}</div>
+        <div class="net-meta">${n.ssid} · <span class="badge badge-${n.security==='nopass'?'blue':'green'}" style="font-size:10px;padding:1px 6px">${n.security}</span> · ${n.saved}</div>
+      </div>
+      <div class="net-actions">
+        <button class="btn btn-ghost" style="padding:6px 10px; font-size:12px" onclick="loadNet(${i})">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Load
+        </button>
+        <button class="btn btn-danger-ghost" style="padding:6px 10px; font-size:12px" onclick="deleteNet(${i})">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          Delete
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+function loadNet(i) {
+  const n = networks[i];
+  document.getElementById('ssid').value = n.ssid;
+  document.getElementById('label').value = n.label || '';
+  document.getElementById('security').value = n.security;
+  document.getElementById('password').value = n.password || '';
+  document.getElementById('hidden-net').checked = n.hidden;
+  secChange();
+  go('create');
+  toast('Network loaded');
+}
+
+function deleteNet(i) {
+  networks.splice(i,1);
+  localStorage.setItem('wifiqr-nets', JSON.stringify(networks));
+  renderSaved();
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
